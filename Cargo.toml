@@ -1,0 +1,13 @@
+[package]
+name = "redis"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "redis"
+path = "src/main/redis.rs"
+
+[dependencies]
+anyhow = "1.0.91"
+log = "0.4.22"
+crossbeam = "0.8.4"
