@@ -1,4 +1,3 @@
-use std::io::{Write, Result};
 use crate::resp::Value;
 
 const CRLF_BYTES: &'static [u8] = b"\r\n";
@@ -6,12 +5,10 @@ const NULL_BYTES: &'static [u8] = b"$-1\r\n";
 const NULL_ARRAY_BYTES: &'static [u8] = b"*-1\r\n";
 
 impl Value {
-    pub fn write(&self, mut writer: impl Write) -> Result<()> {
-        let mut buffer = Vec::new();
-
+    pub fn read_bytes(&self, mut buffer: Vec<u8>) -> Vec<u8> {
         encode_to_buffer(&self, &mut buffer);
 
-        writer.write_all(&buffer)
+        buffer
     }
 }
 
@@ -32,7 +29,7 @@ fn encode_to_buffer(value: &Value, buffer: &mut Vec<u8>) {
             for val in value {
                 encode_to_buffer(val, buffer);
             }
-        },
+        }
         Value::Bulk(string) => {
             let size = string.len();
 
@@ -43,7 +40,7 @@ fn encode_to_buffer(value: &Value, buffer: &mut Vec<u8>) {
             buffer.extend_from_slice(string.as_bytes());
 
             buffer.extend_from_slice(CRLF_BYTES);
-        },
+        }
     }
 }
 

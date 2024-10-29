@@ -1,68 +1,54 @@
-use std::io::{BufReader, Read};
-use std::net::{TcpListener, TcpStream};
-use std::thread;
-use crossbeam::channel::unbounded;
-use log::info;
 use crate::command::Command;
 use crate::resp::Value;
+use log::{debug, error, info};
+use std::error::Error;
+use std::io::{BufReader};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpStream};
 
-pub fn listen(host: &str, port: u16) {
+
+pub async fn listen(host: &str, port: u16) -> Result<(), Box<dyn Error>> {
     let address = format!("{}:{}", host, port);
-    let listener = TcpListener::bind(address).expect("Failed to bind to address");
+    let listener = TcpListener::bind(&address).await?;
 
-    let (tx, rx) = unbounded();
+    info!("Listening on {}", address);
 
-    let incoming_thread = thread::spawn( move || {
-        for incoming in listener.incoming() {
-            if let Ok(connection) = incoming {
-                tx.send(connection)
-                    .expect("Failed to send connection");
-            }
-        }
-    });
+    loop {
+        debug!("Waiting for incoming connections...");
+        let (socket, socket_address) = listener.accept().await?;
 
-    let handler_thread = thread::spawn( move || {
-        loop {
-            if let Ok(connection) = rx.recv() {
-                handler(connection);
-            }
-        }
-    });
+        info!("Accepted connection from {}", socket_address);
 
-    incoming_thread.join()
-        .expect("Failed to join incoming thread");
-    handler_thread.join()
-        .expect("Failed to join handler thread");
-
+        tokio::spawn(async move { handler(socket).await.expect("handler error") });
+    }
 }
 
-fn handler(mut connection: TcpStream) {
-    info!("Accepted connection from {}", connection.peer_addr().unwrap());
-
+async fn handler(mut connection: TcpStream) -> Result<(), Box<dyn Error>> {
     loop {
         let mut buffer = [0; 1024];
 
-        let length = connection.read(&mut buffer)
-            .expect("Failed to read from stream");
+        let length = connection.read(&mut buffer).await?;
 
         if length == 0 {
             break;
         }
 
+        info!("Received {} bytes", length);
+
         let reader = BufReader::new(&buffer[..length]);
-        let value = match Value::read(reader) {
-            Ok(value) => value,
-            Err(e) => {
-                eprintln!("Failed to read value: {}", e);
-                continue;
-            }
-        };
+        let value = Value::read(reader).unwrap_or_else(|e| {
+            error!("Failed to read value: {}", e);
+            Value::Error(e.to_string())
+        });
 
         let command = Command::from(value);
 
         let response = command.run();
 
-        response.write(&mut connection)
-            .expect("Failed to write to stream");
+        let bytes = response.read_bytes(Vec::new());
+
+        connection.write_all(bytes.as_slice()).await?;
     }
+
+    Ok(())
 }

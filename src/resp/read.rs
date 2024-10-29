@@ -1,5 +1,6 @@
 use std::io::{BufRead, BufReader, Read};
 use anyhow::{anyhow, Result};
+use log::debug;
 use crate::resp::{Error, Value};
 
 const RESP_MAX_SIZE: i64 = 512 * 1024 * 1024;
@@ -76,7 +77,11 @@ impl <R: Read> Reader<R> {
 
         buffer.truncate(size);
 
-        parse_string(&buffer).map(Value::Bulk)
+        let value = parse_string(&buffer).map(Value::Bulk);
+
+        debug!("Bulk: {:?}", value);
+
+        value
     }
 
 
@@ -99,6 +104,8 @@ impl <R: Read> Reader<R> {
                 Err(e) => return Err(e),
             }
         }
+
+        debug!("Array: {:?}", values);
 
         Ok(Value::Array(values))
     }

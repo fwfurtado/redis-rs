@@ -10,4 +10,6 @@ path = "src/main/redis.rs"
 [dependencies]
 anyhow = "1.0.91"
 log = "0.4.22"
-crossbeam = "0.8.4"
+tokio = { version = "1.41.0", features = ["full"] }
+env_logger = "0.11.5"
+lazy_static = "1.5.0"
